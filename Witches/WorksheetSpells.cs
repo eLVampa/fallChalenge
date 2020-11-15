@@ -303,31 +303,30 @@ namespace Witches
             for(var i5 = 0; i5 < 2; i5++)
             {
                 var a = new[] {i0, i1, i2, i3, i4, i5};
-                var indexes = new List<int>();
+                var spellForLearn = new List<Spell>();
                 for (var k = 0; k < a.Length; k++)
                 {
                     if (a[k] != 0)
                     {
-                        indexes.Add(k);
+                        spellForLearn.Add(tomSpell[k]);
                     }
                 }
-                var mask = GetMaskByIndexes(indexes);
 
                 var spellForSearch = baseSpell;
-                var current = GetSpellByMask(tomSpell, mask);
-                foreach (var s in current)
+                foreach (var s in spellForLearn)
                 {
                     spellForSearch = spellForSearch.Push(s);
                 }
 
                 var paths = pathFinder.FindOrderPaths(orders, spellForSearch);
 
-                var (score, order) = GetScore(orders, paths, baseSpell.ToList(), tomSpell, mask);
+                var (score, order) = GetScore(orders, paths, baseSpell.ToList(), spellForLearn);
                 res.Add((score, order));
             }
 
             return res.OrderByDescending(x => x.score.points)
                 .ThenBy(x => x.score.length)
+                .ThenByDescending(x => x.order.Length)
                 .ToList();
         }
 
@@ -336,11 +335,9 @@ namespace Witches
             List<Order> orders,
             List<Path>[] paths,
             List<Spell> baseSpell,
-            List<Spell> tomSpell,
-            byte mask)
+            List<Spell> spellForLearn)
         {
             var baseSpellIds = baseSpell.Select(x => x.Id).ToHashSet();
-            var spellForLearn = GetSpellByMask(tomSpell, mask);
 
             var score = 0;
             var totalLength = 0;
@@ -367,41 +364,6 @@ namespace Witches
             totalLength += GetActions(resIdxs);
 
             return ((score, totalLength), resIdxs);
-        }
-
-        private static byte GetMaskByIndexes(List<int> indexes)
-        {
-            byte b = 1;
-            byte res = 0;
-            for (var i = 0; i < 6; i++)
-            {
-                if (indexes.Contains(i))
-                {
-                    res = (byte)(res | b);
-                }
-
-                b = (byte)(b << 1);
-            }
-
-            return res;
-        }
-
-        private static List<Spell> GetSpellByMask(List<Spell> tomSpell, byte mask)
-        {
-            var res = new List<Spell>();
-
-            byte b = 1;
-            for (var i = 0; i < 6; i++)
-            {
-                if ((mask & b) == b)
-                {
-                    res.Add(tomSpell[i]);
-                }
-
-                b = (byte)(b << 1);
-            }
-
-            return res;
         }
 
         private static (int length, int[] spellCnt) GetBestLengthPathBySpells(int orderIndex, List<Path>[] paths, List<Spell> spellsForLearn, HashSet<int> baseSpellIds)
