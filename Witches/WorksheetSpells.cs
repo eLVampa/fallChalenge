@@ -65,37 +65,59 @@ namespace Witches
             
             Console.WriteLine(sw.ElapsedMilliseconds);
 
-            var min = new (byte Cnt, List<Path> Path)[orders.Count];
+            var min = new byte[orders.Count];
 
-            for (var a = 0; a <= 10; a++)
+            //for (var a = 0; a <= 10; a++)
+            //{
+            //    for (var b = 0; b <= 10 - a; b++)
+            //    {
+            //        for (var c = 0; c <= 10 - a - b; c++)
+            //        {
+            //            for (var d = 0; d <= 10 - a - b - c; d++)
+            //            {
+            //                if (respeller.Was[a, b, c, d].Cnt == 0)
+            //                {
+            //                    continue;
+            //                }
+
+            //                for(var i = 0; i < orders.Count; i++)
+            //                {
+            //                    var receipt = orders[i].Tiers;
+            //                    if (
+            //                        receipt[0] > a
+            //                        || receipt[1] > b
+            //                        || receipt[2] > c
+            //                        || receipt[3] > d
+            //                    )
+            //                    {
+            //                        continue;
+            //                    }
+
+            //                    if(min[i].Cnt == 0 || min[i].Cnt > respeller.Was[a, b, c, d].Cnt)
+            //                    {
+            //                        min[i] = respeller.Was[a, b, c, d];
+            //                    }
+            //                }
+            //            }
+            //        }
+            //    }
+            //}
+
+            for(var o = 0; o < orders.Count; o++)
             {
-                for (var b = 0; b <= 10 - a; b++)
+                var order = orders[o];
+
+                for (var a = order.Tiers[0]; a <= 10; a++)
                 {
-                    for (var c = 0; c <= 10 - a - b; c++)
+                    for (var b = order.Tiers[1]; b <= 10 - a; b++)
                     {
-                        for (var d = 0; d <= 10 - a - b - c; d++)
+                        for (var c = order.Tiers[2]; c <= 10 - a - b; c++)
                         {
-                            if (respeller.Was[a, b, c, d].Cnt == 0)
+                            for (var d = order.Tiers[3]; d <= 10 - a - b - c; d++)
                             {
-                                continue;
-                            }
-
-                            for(var i = 0; i < orders.Count; i++)
-                            {
-                                var receipt = orders[i].Tiers;
-                                if (
-                                    receipt[0] > a
-                                    || receipt[1] > b
-                                    || receipt[2] > c
-                                    || receipt[3] > d
-                                )
+                                if (respeller.Was[a, b, c, d].Cnt != 0 && (min[o] == 0 || min[o] > respeller.Was[a, b, c, d].Cnt))
                                 {
-                                    continue;
-                                }
-
-                                if(min[i].Cnt == 0 || min[i].Cnt > respeller.Was[a, b, c, d].Cnt)
-                                {
-                                    min[i] = respeller.Was[a, b, c, d];
+                                    min[o] = respeller.Was[a, b, c, d].Cnt;
                                 }
                             }
                         }
@@ -103,12 +125,62 @@ namespace Witches
                 }
             }
 
+
+            var shortPaths = new List<Path>[orders.Count];
+
+            for (var o = 0; o < orders.Count; o++)
+            {
+                var order = orders[o];
+
+                for (var a = order.Tiers[0]; a <= 10; a++)
+                {
+                    for (var b = order.Tiers[1]; b <= 10 - a; b++)
+                    {
+                        for (var c = order.Tiers[2]; c <= 10 - a - b; c++)
+                        {
+                            for (var d = order.Tiers[3]; d <= 10 - a - b - c; d++)
+                            {
+                                if (respeller.Was[a, b, c, d].Cnt != 0 && respeller.Was[a, b, c, d].Cnt <= min[o] + 1)
+                                {
+                                    if (shortPaths[o] == null)
+                                    {
+                                        shortPaths[o] = new List<Path>();
+                                    }
+
+                                    foreach (var path in respeller.Was[a, b, c, d].Path)
+                                    {
+                                        if (!shortPaths[o].Contains(path))
+                                        {
+                                            shortPaths[o].Add(path);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+
+            Console.WriteLine($"Total path: {shortPaths.SelectMany(x => x).Count()}");
+
+
+            var cnt = shortPaths.SelectMany(x => x)
+                .SelectMany(x => x.GetActions())
+                .Where(x => x is Spell)
+                .Select(x => ((Spell) x).Id)
+                .Where(x => x > 104)
+                .ToHashSet()
+                .Count;
+
+            Console.WriteLine($"Total new spells: {cnt}");
+
             for (var i = 0; i < orders.Count; i++)
             {
-                var sb = new StringBuilder($"{orders[i].Tiers}: {min[i].Cnt } |\r\n");
-                if (min[i].Cnt != 0)
+                var sb = new StringBuilder($"{orders[i].Tiers}: {min[i]} |\r\n");
+                if (shortPaths[i].Count != 0)
                 {
-                    foreach (var path in min[i].Path)
+                    foreach (var path in shortPaths[i])
                     {
                         sb.AppendLine($"\t{path}");
                     }
@@ -318,7 +390,7 @@ namespace Witches
 
                     var nextStates = action is Spell spell
                         ? GetRepeatableSpells(spell, cs)
-                        : new[] {action.TryGetNext(cs)};
+                        : new[] { action.TryGetNext(cs) };
 
                     foreach (var nextState in nextStates)
                     {

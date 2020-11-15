@@ -699,6 +699,11 @@ public class Path
         return new Path(chain.Push(item));
     }
 
+    public ImmutableStack<IAction> GetActions()
+    {
+        return chain;
+    }
+
     public int GetLength()
     {
         if (chain.GetTop() == null)
