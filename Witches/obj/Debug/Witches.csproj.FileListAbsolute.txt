@@ -12,3 +12,17 @@ C:\Users\denis.boginich\source\repos\CodinGame\Witches\obj\Debug\Witches.pdb
 C:\Users\denis.boginich\source\repos\CodinGame\Witches\bin\Debug\FluentAssertions.dll
 C:\Users\denis.boginich\source\repos\CodinGame\Witches\bin\Debug\FluentAssertions.pdb
 C:\Users\denis.boginich\source\repos\CodinGame\Witches\bin\Debug\FluentAssertions.xml
+D:\github\fallChalenge\Witches\bin\Debug\Witches.exe.config
+D:\github\fallChalenge\Witches\bin\Debug\Witches.exe
+D:\github\fallChalenge\Witches\bin\Debug\Witches.pdb
+D:\github\fallChalenge\Witches\bin\Debug\FluentAssertions.dll
+D:\github\fallChalenge\Witches\bin\Debug\nunit.framework.dll
+D:\github\fallChalenge\Witches\bin\Debug\FluentAssertions.pdb
+D:\github\fallChalenge\Witches\bin\Debug\FluentAssertions.xml
+D:\github\fallChalenge\Witches\bin\Debug\nunit.framework.pdb
+D:\github\fallChalenge\Witches\bin\Debug\nunit.framework.xml
+D:\github\fallChalenge\Witches\obj\Debug\Witches.csprojAssemblyReference.cache
+D:\github\fallChalenge\Witches\obj\Debug\Witches.csproj.CoreCompileInputs.cache
+D:\github\fallChalenge\Witches\obj\Debug\Witches.csproj.CopyComplete
+D:\github\fallChalenge\Witches\obj\Debug\Witches.exe
+D:\github\fallChalenge\Witches\obj\Debug\Witches.pdb

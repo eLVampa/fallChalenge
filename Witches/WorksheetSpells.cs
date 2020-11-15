@@ -57,10 +57,15 @@ namespace Witches
                 OrderReceipts[13],
             };
 
+            var sw = new Stopwatch();
+            sw.Start();
+            
             var respeller = new Respeller();
             respeller.Resolve(startSpell);
+            
+            Console.WriteLine(sw.ElapsedMilliseconds);
 
-            var min = new (byte Cnt, ImmutableStack<IAction>)[orders.Count];
+            var min = new (byte Cnt, List<Path> Path)[orders.Count];
 
             for (var a = 0; a <= 10; a++)
             {
@@ -100,15 +105,15 @@ namespace Witches
 
             for (var i = 0; i < orders.Count; i++)
             {
-                var sb = new StringBuilder($"{orders[i].Tiers}: {min[i].Cnt } |");
+                var sb = new StringBuilder($"{orders[i].Tiers}: {min[i].Cnt } |\r\n");
                 if (min[i].Cnt != 0)
                 {
-                    foreach (var action in min[i].Item2.Reverse())
+                    foreach (var path in min[i].Path)
                     {
-                        sb.Append($" -> {action.Print()}");
+                        sb.AppendLine($"\t{path}");
                     }
-                    
                 }
+
                 Console.WriteLine(sb);
             }
         }
@@ -262,8 +267,8 @@ namespace Witches
 
     public class Respeller
     {
-        public const int timeout = 300_000;
-        public (byte Cnt, ImmutableStack<IAction> Path)[,,,] Was { get; private set; } = new (byte Cnt, ImmutableStack<IAction> Path)[11, 11, 11, 11];
+        public const int timeout = 5_000;
+        public (byte Cnt, List<Path> Path)[,,,] Was { get; private set; } = new (byte Cnt, List<Path> Path)[11, 11, 11, 11];
 
         public void Resolve(ImmutableStack<Spell> spells)
         {
@@ -280,7 +285,7 @@ namespace Witches
                 new HashSet<int>(),
                 new HashSet<int>(),
                 new HashSet<int>(),
-                ImmutableStack<IAction>.Instance,
+                Path.Instance,
                 false);
 
             queue.Enqueue(state);
@@ -291,7 +296,7 @@ namespace Witches
                 processed++;
                 var cs = queue.Dequeue();
 
-                if (maxD == 30)
+                if (maxD == 8)
                 {
                     Console.WriteLine(maxD);
                     return;
@@ -324,26 +329,33 @@ namespace Witches
 
                         if (nextState != null)
                         {
-                            var currentD = nextState.Actions.GetTop()?.Index ?? 0;
+                            var currentD = nextState.Actions.GetLength();
 
                             var prevInv = cs.StateRes.Inventary;
                             var inv = nextState.StateRes.Inventary;
+
+                            if (Was[inv[0], inv[1], inv[2], inv[3]].Cnt == 0)
+                            {
+                                Was[inv[0], inv[1], inv[2], inv[3]].Cnt = (byte)currentD;
+                                Was[inv[0], inv[1], inv[2], inv[3]].Path = new List<Path> {nextState.Actions};
+                            }
+                            else
+                            {
+                                if (Was[inv[0], inv[1], inv[2], inv[3]].Cnt + 1 >= currentD)
+                                {
+                                    Was[inv[0], inv[1], inv[2], inv[3]].Path.Add(nextState.Actions);
+                                }
+                            }
+
                             if (inv[0] != prevInv[0]
                                 || inv[1] != prevInv[1]
                                 || inv[2] != prevInv[2]
                                 || inv[3] != prevInv[3])
                             {
-                                if (Was[inv[0], inv[1], inv[2], inv[3]].Cnt != 0 && Was[inv[0], inv[1], inv[2], inv[3]].Cnt < currentD + 1)
+                                if (Was[inv[0], inv[1], inv[2], inv[3]].Cnt != 0 && Was[inv[0], inv[1], inv[2], inv[3]].Cnt < currentD)
                                 {
                                     continue;
                                 }
-                            }
-
-                            if (Was[inv[0], inv[1], inv[2], inv[3]].Cnt == 0 ||
-                                Was[inv[0], inv[1], inv[2], inv[3]].Cnt > currentD + 1)
-                            {
-                                Was[inv[0], inv[1], inv[2], inv[3]].Cnt = (byte)(currentD + 1);
-                                Was[inv[0], inv[1], inv[2], inv[3]].Path = nextState.Actions;
                             }
 
                             queue.Enqueue(nextState);

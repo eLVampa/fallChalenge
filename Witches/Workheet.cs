@@ -80,7 +80,7 @@ namespace Witches
                 new HashSet<int>(),
                 new HashSet<int>(),
                 new HashSet<int>(),
-                ImmutableStack<IAction>.Instance,
+                Path.Instance,
                 false
             );
 

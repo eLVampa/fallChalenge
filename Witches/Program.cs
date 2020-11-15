@@ -92,7 +92,7 @@ class Player
                 new HashSet<int>(),
                 usedSpells,
                 new HashSet<int>(),
-                ImmutableStack<IAction>.Instance,
+                Path.Instance,
                 needRest
             );
 
@@ -192,7 +192,7 @@ public class Resolver
                         //   if (!(action is Order))
                         //   {
                         queue.Enqueue(nextState);
-                        maxD = Math.Max(maxD, nextState.Actions.GetTop()?.Index ?? 0);
+                        maxD = Math.Max(maxD, nextState.Actions.GetLength());
 
                         //   }
                         //   else
@@ -251,13 +251,13 @@ public class Resolver
                 theBest = candidate;
             }
 
-            if (theBest.GetProfit() == candidate.GetProfit() && theBest.Actions.GetTop().Index > candidate.Actions.GetTop().Index)
+            if (theBest.GetProfit() == candidate.GetProfit() && theBest.Actions.GetLength() > candidate.Actions.GetLength())
             {
                 theBest = candidate;
             }
         }
 
-        var bestAction = theBest?.Actions.GetDno()?.Item;
+        var bestAction = theBest?.Actions.TryGetFirstAction();
         if (bestAction == null)
         {
             return "REST I`m getting stupid!";
@@ -273,10 +273,7 @@ public class Resolver
             //sb.Append($" KS {best.Spells.GetTop().Index + 1}");
             sb.Append($" V {processed}");
             sb.Append("\r\nMy Plan: \r\n");
-            foreach (var action in theBest.Actions.Reverse())
-            {
-                sb.AppendLine(action.Print());
-            }
+            sb.Append(theBest.Actions);
         }
 
         return sb.ToString();
@@ -296,7 +293,7 @@ public class GameState
         HashSet<int> usedOrders,
         HashSet<int> usedSpells,
         HashSet<int> learnedByTomIndex,
-        ImmutableStack<IAction> actions,
+        Path actions,
         bool needRest)
     {
         StateRes = stateRes;
@@ -317,12 +314,12 @@ public class GameState
     public HashSet<int> UsedOrders { get; }
     public HashSet<int> UsedSpells { get; }
     public HashSet<int> LearnedByTomIndex { get; }
-    public ImmutableStack<IAction> Actions { get; }
+    public Path Actions { get; }
     public bool NeedRest { get; }
 
     public decimal GetProfit()
     {
-        return (StateRes.GetScore() * 1.0m) / (Actions.GetTop().Index + 1);
+        return (StateRes.GetScore() * 1.0m) / Actions.GetLength();
     }
 }
 
@@ -372,7 +369,7 @@ public class Rest : IAction
             gameState.UsedOrders,
             new HashSet<int>(),
             gameState.LearnedByTomIndex,
-            gameState.Actions.Push(this),
+            gameState.Actions.Add(this),
             false
         );
     }
@@ -437,7 +434,7 @@ public class Spell : IAction
             gameState.UsedOrders,
             usedSpells,
             gameState.LearnedByTomIndex,
-            gameState.Actions.Push(this),
+            gameState.Actions.Add(this),
             true
         );
     }
@@ -486,7 +483,7 @@ public class Order : IAction
             usedOrders,
             gameState.UsedSpells,
             gameState.LearnedByTomIndex,
-            gameState.Actions.Push(this),
+            gameState.Actions.Add(this),
             gameState.NeedRest
         );
     }
@@ -546,7 +543,7 @@ public class Learn : IAction
             gameState.UsedOrders,
             gameState.UsedSpells,
             learnedByTomIndex,
-            gameState.Actions.Push(this),
+            gameState.Actions.Add(this),
             gameState.NeedRest
         );
     }
@@ -676,6 +673,119 @@ public class Tiers
     {
         return $"[{val.zero} {val.first} {val.second} {val.third}]";
     }
+}
+
+public class Path
+{
+    public override int GetHashCode()
+    {
+        return (chain != null ? chain.GetHashCode() : 0);
+    }
+
+    public static readonly Path Instance = new Path();
+
+    private Path()
+    {
+        chain = ImmutableStack<IAction>.Instance;
+    }
+
+    private Path(ImmutableStack<IAction> stack)
+    {
+        chain = stack;
+    }
+
+    public Path Add(IAction item)
+    {
+        return new Path(chain.Push(item));
+    }
+
+    public int GetLength()
+    {
+        if (chain.GetTop() == null)
+        {
+            return 0;
+        }
+        return chain.GetTop().Index + 1;
+    }
+
+    public IAction TryGetFirstAction()
+    {
+        return chain.GetDno().Item;
+    }
+
+    public int GetUniqueSpellCnt()
+    {
+        if (uniqueSpellCnt == null)
+        {
+            FillFingerprint();
+        }
+
+        return uniqueSpellCnt.Value;
+    }
+
+    public override string ToString()
+    {
+        var sb = new StringBuilder();
+        foreach (var action in chain.Reverse())
+        {
+            sb.Append($" -> {action.Print()}");
+        }
+        return sb.ToString();
+    }
+
+    protected bool Equals(Path other)
+    {
+        if (GetUniqueSpellCnt() != other.GetUniqueSpellCnt())
+        {
+            return false;
+        }
+
+        for (var i = 0; i < fingerprint.Length; i++)
+        {
+            if (fingerprint[i] != other.fingerprint[i])
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    public override bool Equals(object obj)
+    {
+        if (ReferenceEquals(null, obj)) return false;
+        if (ReferenceEquals(this, obj)) return true;
+        if (obj.GetType() != this.GetType()) return false;
+        return Equals((Path) obj);
+    }
+
+    private void FillFingerprint()
+    {
+        var a = chain.Where(x => x is Spell)
+            .Select(x => ((Spell) x).Id)
+            .ToArray();
+
+        Array.Sort(a);
+        fingerprint = a;
+
+        var cnt = 0;
+        var val = -7;
+        for (var i = 0; i < fingerprint.Length; i++)
+        {
+            if (val != i)
+            {
+                cnt++;
+                val = i;
+            }
+        }
+
+        uniqueSpellCnt = cnt;
+    }
+
+    private int? uniqueSpellCnt;
+    private int[] fingerprint;
+
+    private readonly ImmutableStack<IAction> chain;
 }
 
 public class ImmutableStack<T> : IEnumerable<T>
