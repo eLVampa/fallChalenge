@@ -161,7 +161,7 @@ public class Resolver
                 }
 
                 var nextStates = action is Spell spell
-                    ? GetRepeatableSpells(spell, cs)
+                    ? spell.GetNexStatesForSpell(cs)
                     : new[] { action.TryGetNext(cs) };
 
                 foreach (var nextState in nextStates)
@@ -220,24 +220,6 @@ public class Resolver
         }
 
         return GetBestAction(best, bestCandidates, processed, maxD, timeIsOver, queue.Count);
-    }
-
-    private static IEnumerable<GameState> GetRepeatableSpells(Spell spell, GameState gs)
-    {
-        yield return spell.TryGetNext(gs);
-
-        if (spell.IsRepeatable())
-        {
-            var inventary = gs.StateRes.Inventary;
-            var cnt = 2;
-            var currentInv = inventary + spell.Tiers * cnt;
-            while (currentInv.IsValidInventary())
-            {
-                yield return new Spell(spell.Id, spell.Tiers, false, cnt).TryGetNext(gs);
-                cnt++;
-                currentInv = inventary + spell.Tiers * cnt;
-            }
-        }
     }
 
     private string GetBestAction(GameState best, List<GameState> bestCandidates, int processed, int maxD, bool timeIsOver, int queueCnt)
@@ -859,6 +841,27 @@ public class ImmutableNode<T>
     public ImmutableNode<T> Prev { get; }
 
     public int Index { get; }
+}
+
+public static class SpellHelper
+{
+    public static IEnumerable<GameState> GetNexStatesForSpell(this Spell spell, GameState gs)
+    {
+        yield return spell.TryGetNext(gs);
+
+        if (spell.IsRepeatable())
+        {
+            var inventary = gs.StateRes.Inventary;
+            var cnt = 2;
+            var currentInv = inventary + spell.Tiers * cnt;
+            while (currentInv.IsValidInventary())
+            {
+                yield return new Spell(spell.Id, spell.Tiers, false, cnt).TryGetNext(gs);
+                cnt++;
+                currentInv = inventary + spell.Tiers * cnt;
+            }
+        }
+    }
 }
 
 #endregion

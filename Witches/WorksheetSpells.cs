@@ -60,110 +60,12 @@ namespace Witches
             var sw = new Stopwatch();
             sw.Start();
             
-            var respeller = new Respeller();
-            respeller.Resolve(startSpell);
+            var orderPathFinder = new OrderPathFinder();
+            var shortPaths = orderPathFinder.FindOrderPaths(orders, startSpell);
             
             Console.WriteLine(sw.ElapsedMilliseconds);
 
-            var min = new byte[orders.Count];
-
-            //for (var a = 0; a <= 10; a++)
-            //{
-            //    for (var b = 0; b <= 10 - a; b++)
-            //    {
-            //        for (var c = 0; c <= 10 - a - b; c++)
-            //        {
-            //            for (var d = 0; d <= 10 - a - b - c; d++)
-            //            {
-            //                if (respeller.Was[a, b, c, d].Cnt == 0)
-            //                {
-            //                    continue;
-            //                }
-
-            //                for(var i = 0; i < orders.Count; i++)
-            //                {
-            //                    var receipt = orders[i].Tiers;
-            //                    if (
-            //                        receipt[0] > a
-            //                        || receipt[1] > b
-            //                        || receipt[2] > c
-            //                        || receipt[3] > d
-            //                    )
-            //                    {
-            //                        continue;
-            //                    }
-
-            //                    if(min[i].Cnt == 0 || min[i].Cnt > respeller.Was[a, b, c, d].Cnt)
-            //                    {
-            //                        min[i] = respeller.Was[a, b, c, d];
-            //                    }
-            //                }
-            //            }
-            //        }
-            //    }
-            //}
-
-            for(var o = 0; o < orders.Count; o++)
-            {
-                var order = orders[o];
-
-                for (var a = order.Tiers[0]; a <= 10; a++)
-                {
-                    for (var b = order.Tiers[1]; b <= 10 - a; b++)
-                    {
-                        for (var c = order.Tiers[2]; c <= 10 - a - b; c++)
-                        {
-                            for (var d = order.Tiers[3]; d <= 10 - a - b - c; d++)
-                            {
-                                if (respeller.Was[a, b, c, d].Cnt != 0 && (min[o] == 0 || min[o] > respeller.Was[a, b, c, d].Cnt))
-                                {
-                                    min[o] = respeller.Was[a, b, c, d].Cnt;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-
-            var shortPaths = new List<Path>[orders.Count];
-
-            for (var o = 0; o < orders.Count; o++)
-            {
-                var order = orders[o];
-
-                for (var a = order.Tiers[0]; a <= 10; a++)
-                {
-                    for (var b = order.Tiers[1]; b <= 10 - a; b++)
-                    {
-                        for (var c = order.Tiers[2]; c <= 10 - a - b; c++)
-                        {
-                            for (var d = order.Tiers[3]; d <= 10 - a - b - c; d++)
-                            {
-                                if (respeller.Was[a, b, c, d].Cnt != 0 && respeller.Was[a, b, c, d].Cnt <= min[o] + 1)
-                                {
-                                    if (shortPaths[o] == null)
-                                    {
-                                        shortPaths[o] = new List<Path>();
-                                    }
-
-                                    foreach (var path in respeller.Was[a, b, c, d].Path)
-                                    {
-                                        if (!shortPaths[o].Contains(path))
-                                        {
-                                            shortPaths[o].Add(path);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-
             Console.WriteLine($"Total path: {shortPaths.SelectMany(x => x).Count()}");
-
 
             var cnt = shortPaths.SelectMany(x => x)
                 .SelectMany(x => x.GetActions())
@@ -177,7 +79,7 @@ namespace Witches
 
             for (var i = 0; i < orders.Count; i++)
             {
-                var sb = new StringBuilder($"{orders[i].Tiers}: {min[i]} |\r\n");
+                var sb = new StringBuilder($"{orders[i].Tiers}: |\r\n");
                 if (shortPaths[i].Count != 0)
                 {
                     foreach (var path in shortPaths[i])
@@ -337,14 +239,228 @@ namespace Witches
         };
     }
 
-    public class Respeller
-    {
-        public const int timeout = 5_000;
-        public (byte Cnt, List<Path> Path)[,,,] Was { get; private set; } = new (byte Cnt, List<Path> Path)[11, 11, 11, 11];
 
-        public void Resolve(ImmutableStack<Spell> spells)
+    public class SpellOptimizer
+    {
+        public List<Spell> GetSpellForLearn(List<Order> orders, ImmutableStack<Spell> tomSpell, ImmutableStack<Spell> baseSpell)
         {
-            var processed = 0;
+            var pathFinder = new OrderPathFinder();
+            var baseOrderPath = pathFinder.FindOrderPaths(orders, baseSpell);
+
+            for (var i = 0; i < UPPER; i++)
+            {
+                
+            }
+
+
+
+        }
+
+
+        private decimal GetScore(List<Order> orders, List<Path>[] paths, List<Spell> tomSpell, byte mask)
+        {
+            var spellForLearn = GetSpellByMask(tomSpell, mask);
+            
+            var score = 0;
+            var totalLength = 0;
+            var summs = spellForLearn.Select((x, i) => (Sum: 0, TomeIndex: i, Spell: x)).ToArray();
+            for (var i = 0; i < orders.Count; i++)
+            {
+                var (length, spellsCnt) = GetBestLengthPathBySpells(i, paths, spellForLearn);
+                for(var j= 0; j < spellsCnt.Count; j++)
+                {
+                    summs[j].Sum += spellsCnt[j];
+                }
+                totalLength += length;
+                if (length != 0)
+                {
+                    score += orders[i].Price;
+                }
+            }
+
+            Array.Sort(summs);
+
+            var resIdxs = summs.Select(x => x.TomeIndex).ToArray();
+            totalLength += GetActions(resIdxs);
+
+            return score * 1.0m / totalLength;
+        }
+
+        private static byte GetMaskByIndexes(int[] indexes)
+        {
+            return 1;
+        }
+
+        private static List<Spell> GetSpellByMask(List<Spell> tomSpell, byte mask)
+        {
+            var res = new List<Spell>();
+
+            byte b = 1;
+            for (var i = 0; i < 6; i++)
+            {
+                if ((mask & b) == b)
+                {
+                    res.Add(tomSpell[i]);
+                }
+
+                b = (byte)(b << 1);
+            }
+
+            return res;
+        }
+
+        private static (int length, List<int> spellCnt) GetBestLengthPathBySpells(int orderIndex, List<Path>[] paths, List<Spell> spellsForLearn)
+        {
+            var knownSpells = spellsForLearn.Select(x => x.Id).ToHashSet();
+            var orderPaths = paths[orderIndex];
+            var best = 0;
+            if (orderPaths != null)
+            {
+                foreach (var path in orderPaths)
+                {
+                    var actions = path.GetActions();
+                    var canBrew = actions.All(a => !(a is Spell) || knownSpells.Contains(((Spell) a).Id));
+                    if (canBrew && (best == 0 || best > path.GetLength()))
+                    {
+                        best = path.GetLength();
+                    }
+                }
+            }
+
+            return (best, new List<int>());
+        }
+
+        private static int GetActions(int[] tomeIndexes)
+        {
+            var actionsCnt = 0;
+            var c = 3;
+            foreach (var tomIndex in tomeIndexes)
+            {
+                var k = 0;
+                switch (tomIndex)
+                {
+                    case 5:
+                        (k, c) = GetActions(5, c);
+                        break;
+                    case 4:
+                        (k, c) = GetActions(4, c);
+                        break;
+                    case 3:
+                        (k, c) = GetActions(3, c);
+                        break;
+                    case 2:
+                        (k, c) = GetActions(2, c);
+                        break;
+                    case 1:
+                        (k, c) = GetActions(1, c);
+                        break;
+                    case 0:
+                        (k, c) = GetActions(1, c);
+                        break;
+                }
+
+                actionsCnt += k;
+            }
+
+            return actionsCnt;
+        }
+
+        private static (int a, int newC) GetActions(int index, int c)
+        {
+            if (index > c)
+            {
+                var t = index - c;
+                var t2 = t / 2;
+                var ost = (t2 * 2) != t ? 1 : 0;
+                return (t2 + ost + 1, ost);
+            }
+
+            return (1, c - index);
+        }
+    }
+
+    public class OrderPathFinder
+    {
+        public OrderPathFinder(int timeout = 900, int depth = 8)
+        {
+            this.depth = depth;
+            this.timeout = timeout;
+        }
+
+        private readonly int depth;
+        private readonly int timeout;
+
+        public List<Path>[] FindOrderPaths(List<Order> orders, ImmutableStack<Spell> spells)
+        {
+            var was = SpaceFill(spells);
+
+            var min = new byte[orders.Count];
+
+
+            for (var o = 0; o < orders.Count; o++)
+            {
+                var order = orders[o];
+
+                for (var a = order.Tiers[0]; a <= 10; a++)
+                {
+                    for (var b = order.Tiers[1]; b <= 10 - a; b++)
+                    {
+                        for (var c = order.Tiers[2]; c <= 10 - a - b; c++)
+                        {
+                            for (var d = order.Tiers[3]; d <= 10 - a - b - c; d++)
+                            {
+                                if (was[a, b, c, d].Cnt != 0 && (min[o] == 0 || min[o] > was[a, b, c, d].Cnt))
+                                {
+                                    min[o] = was[a, b, c, d].Cnt;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            var shortPaths = new List<Path>[orders.Count];
+
+            for (var o = 0; o < orders.Count; o++)
+            {
+                var order = orders[o];
+
+                for (var a = order.Tiers[0]; a <= 10; a++)
+                {
+                    for (var b = order.Tiers[1]; b <= 10 - a; b++)
+                    {
+                        for (var c = order.Tiers[2]; c <= 10 - a - b; c++)
+                        {
+                            for (var d = order.Tiers[3]; d <= 10 - a - b - c; d++)
+                            {
+                                if (was[a, b, c, d].Cnt != 0 && was[a, b, c, d].Cnt <= min[o] + 1)
+                                {
+                                    if (shortPaths[o] == null)
+                                    {
+                                        shortPaths[o] = new List<Path>();
+                                    }
+
+                                    foreach (var path in was[a, b, c, d].Path)
+                                    {
+                                        if (!shortPaths[o].Contains(path))
+                                        {
+                                            shortPaths[o].Add(path);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            return shortPaths;
+        }
+
+        private (byte Cnt, List<Path> Path)[, , , ] SpaceFill(ImmutableStack<Spell> spells)
+        {
+            var was = new (byte Cnt, List<Path> Path)[11, 11, 11, 11];
+
             var maxD = 0;
 
             var queue = new Queue<GameState>();
@@ -365,13 +481,12 @@ namespace Witches
             var sw = Stopwatch.StartNew();
             while (sw.ElapsedMilliseconds < timeout && queue.Count != 0)
             {
-                processed++;
                 var cs = queue.Dequeue();
 
-                if (maxD == 8)
+                if (maxD == depth)
                 {
-                    Console.WriteLine(maxD);
-                    return;
+                    Console.Error.WriteLine(maxD);
+                    return was;
                 }
 
                 var actions =
@@ -389,7 +504,7 @@ namespace Witches
                     }
 
                     var nextStates = action is Spell spell
-                        ? GetRepeatableSpells(spell, cs)
+                        ? spell.GetNexStatesForSpell(cs)
                         : new[] { action.TryGetNext(cs) };
 
                     foreach (var nextState in nextStates)
@@ -406,16 +521,16 @@ namespace Witches
                             var prevInv = cs.StateRes.Inventary;
                             var inv = nextState.StateRes.Inventary;
 
-                            if (Was[inv[0], inv[1], inv[2], inv[3]].Cnt == 0)
+                            if (was[inv[0], inv[1], inv[2], inv[3]].Cnt == 0)
                             {
-                                Was[inv[0], inv[1], inv[2], inv[3]].Cnt = (byte)currentD;
-                                Was[inv[0], inv[1], inv[2], inv[3]].Path = new List<Path> {nextState.Actions};
+                                was[inv[0], inv[1], inv[2], inv[3]].Cnt = (byte)currentD;
+                                was[inv[0], inv[1], inv[2], inv[3]].Path = new List<Path> {nextState.Actions};
                             }
                             else
                             {
-                                if (Was[inv[0], inv[1], inv[2], inv[3]].Cnt + 1 >= currentD)
+                                if (was[inv[0], inv[1], inv[2], inv[3]].Cnt + 1 >= currentD)
                                 {
-                                    Was[inv[0], inv[1], inv[2], inv[3]].Path.Add(nextState.Actions);
+                                    was[inv[0], inv[1], inv[2], inv[3]].Path.Add(nextState.Actions);
                                 }
                             }
 
@@ -424,7 +539,7 @@ namespace Witches
                                 || inv[2] != prevInv[2]
                                 || inv[3] != prevInv[3])
                             {
-                                if (Was[inv[0], inv[1], inv[2], inv[3]].Cnt != 0 && Was[inv[0], inv[1], inv[2], inv[3]].Cnt < currentD)
+                                if (was[inv[0], inv[1], inv[2], inv[3]].Cnt != 0 && was[inv[0], inv[1], inv[2], inv[3]].Cnt < currentD)
                                 {
                                     continue;
                                 }
@@ -437,32 +552,17 @@ namespace Witches
                 }
             }
 
+
             if (queue.Count == 0)
             {
-                Console.WriteLine($" {maxD} I'm BEST!");
+                Console.Error.WriteLine($" {maxD} I'm BEST!");
             }
             else
             {
-                Console.WriteLine($" {maxD} NOT BAD!");
+                Console.Error.WriteLine($" {maxD} NOT BAD!");
             }
-        }
 
-        private static IEnumerable<GameState> GetRepeatableSpells(Spell spell, GameState gs)
-        {
-            yield return spell.TryGetNext(gs);
-
-            if (spell.IsRepeatable())
-            {
-                var inventary = gs.StateRes.Inventary;
-                var cnt = 2;
-                var currentInv = inventary + (spell.Tiers * cnt);
-                while (currentInv.IsValidInventary())
-                {
-                    yield return new Spell(spell.Id, spell.Tiers, false, cnt).TryGetNext(gs);
-                    cnt++;
-                    currentInv = inventary + spell.Tiers * cnt;
-                }
-            }
+            return was;
         }
     }
 }
