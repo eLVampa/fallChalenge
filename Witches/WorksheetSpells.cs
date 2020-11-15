@@ -9,6 +9,54 @@ namespace Witches
 {
     public class WorksheetSpells
     {
+
+        [Test]
+        public void SpellOptimizerTest()
+        {
+            var allSpells = GetAllSpells().ToList();
+
+            var baseSpell = ImmutableStack<Spell>.Instance
+                .Push(allSpells[0])
+                .Push(allSpells[1])
+                .Push(allSpells[2])
+                .Push(allSpells[3]);
+
+            var tomeSpells = new List<Spell>()
+            {
+                allSpells[15],
+                allSpells[27],
+                allSpells[31],
+                allSpells[9],
+                allSpells[7],
+                allSpells[11],
+            };
+
+            var orders = new List<Order>
+            {
+                OrderReceipts[2],
+                OrderReceipts[7],
+                OrderReceipts[22],
+                OrderReceipts[31],
+                OrderReceipts[13],
+            };
+
+            var spellOptimizer = new SpellOptimizer();
+            var mapForLearn = spellOptimizer.GetSpellMapForLearn(orders, tomeSpells, baseSpell);
+
+            foreach (var item in mapForLearn)
+            {
+                var sb = new StringBuilder();
+                sb.Append($"points: {item.score.points}, length: {item.score.length}  | ");
+                foreach (var i in item.order)
+                {
+                    sb.Append($" -> {i}");
+                }
+
+                Console.WriteLine(sb);
+            }
+        }
+
+
         [Test]
         public void Test1()
         {
@@ -18,13 +66,14 @@ namespace Witches
                 .Push(allSpells[0])
                 .Push(allSpells[1])
                 .Push(allSpells[2])
-                .Push(allSpells[3])
-                .Push(allSpells[15])
-                .Push(allSpells[27])
-                .Push(allSpells[31])
-                .Push(allSpells[9])
-                .Push(allSpells[7])
-                .Push(allSpells[11]);
+                .Push(allSpells[3]);
+
+                //.Push(allSpells[15])
+                //.Push(allSpells[27])
+                //.Push(allSpells[31])
+                //.Push(allSpells[9])
+                //.Push(allSpells[7])
+                //.Push(allSpells[11]);
 
             //var startSpell = ImmutableStack<Spell>.Instance;
 
@@ -242,35 +291,68 @@ namespace Witches
 
     public class SpellOptimizer
     {
-        public List<Spell> GetSpellForLearn(List<Order> orders, ImmutableStack<Spell> tomSpell, ImmutableStack<Spell> baseSpell)
+        public List<((int points, int length) score, int[] order)> GetSpellMapForLearn(List<Order> orders, List<Spell> tomSpell, ImmutableStack<Spell> baseSpell)
         {
             var pathFinder = new OrderPathFinder();
-            var baseOrderPath = pathFinder.FindOrderPaths(orders, baseSpell);
-
-            for (var i = 0; i < UPPER; i++)
+            var res = new List<((int points, int length) score, int[] order)>();
+            for(var i0 = 0; i0 < 2; i0++)
+            for(var i1 = 0; i1 < 2; i1++)
+            for(var i2 = 0; i2 < 2; i2++)
+            for(var i3 = 0; i3 < 2; i3++)
+            for(var i4 = 0; i4 < 2; i4++)
+            for(var i5 = 0; i5 < 2; i5++)
             {
-                
+                var a = new[] {i0, i1, i2, i3, i4, i5};
+                var indexes = new List<int>();
+                for (var k = 0; k < a.Length; k++)
+                {
+                    if (a[k] != 0)
+                    {
+                        indexes.Add(k);
+                    }
+                }
+                var mask = GetMaskByIndexes(indexes);
+
+                var spellForSearch = baseSpell;
+                var current = GetSpellByMask(tomSpell, mask);
+                foreach (var s in current)
+                {
+                    spellForSearch = spellForSearch.Push(s);
+                }
+
+                var paths = pathFinder.FindOrderPaths(orders, spellForSearch);
+
+                var (score, order) = GetScore(orders, paths, baseSpell.ToList(), tomSpell, mask);
+                res.Add((score, order));
             }
 
-
-
+            return res.OrderByDescending(x => x.score.points)
+                .ThenBy(x => x.score.length)
+                .ToList();
         }
 
 
-        private decimal GetScore(List<Order> orders, List<Path>[] paths, List<Spell> tomSpell, byte mask)
+        private static ((int points, int length) score, int[] order) GetScore(
+            List<Order> orders,
+            List<Path>[] paths,
+            List<Spell> baseSpell,
+            List<Spell> tomSpell,
+            byte mask)
         {
+            var baseSpellIds = baseSpell.Select(x => x.Id).ToHashSet();
             var spellForLearn = GetSpellByMask(tomSpell, mask);
-            
+
             var score = 0;
             var totalLength = 0;
-            var summs = spellForLearn.Select((x, i) => (Sum: 0, TomeIndex: i, Spell: x)).ToArray();
+            var summs = spellForLearn.Select(x => (Sum: 0, Spell: x)).ToArray();
             for (var i = 0; i < orders.Count; i++)
             {
-                var (length, spellsCnt) = GetBestLengthPathBySpells(i, paths, spellForLearn);
-                for(var j= 0; j < spellsCnt.Count; j++)
+                var (length, spellsCnt) = GetBestLengthPathBySpells(i, paths, spellForLearn, baseSpellIds);
+                for (var j = 0; j < spellsCnt.Length; j++)
                 {
                     summs[j].Sum += spellsCnt[j];
                 }
+
                 totalLength += length;
                 if (length != 0)
                 {
@@ -278,17 +360,30 @@ namespace Witches
                 }
             }
 
-            Array.Sort(summs);
+            var resIdxs = summs.OrderByDescending(x => x.Sum)
+                .Select(x => x.Spell.Id)
+                .ToArray();
 
-            var resIdxs = summs.Select(x => x.TomeIndex).ToArray();
             totalLength += GetActions(resIdxs);
 
-            return score * 1.0m / totalLength;
+            return ((score, totalLength), resIdxs);
         }
 
-        private static byte GetMaskByIndexes(int[] indexes)
+        private static byte GetMaskByIndexes(List<int> indexes)
         {
-            return 1;
+            byte b = 1;
+            byte res = 0;
+            for (var i = 0; i < 6; i++)
+            {
+                if (indexes.Contains(i))
+                {
+                    res = (byte)(res | b);
+                }
+
+                b = (byte)(b << 1);
+            }
+
+            return res;
         }
 
         private static List<Spell> GetSpellByMask(List<Spell> tomSpell, byte mask)
@@ -309,25 +404,38 @@ namespace Witches
             return res;
         }
 
-        private static (int length, List<int> spellCnt) GetBestLengthPathBySpells(int orderIndex, List<Path>[] paths, List<Spell> spellsForLearn)
+        private static (int length, int[] spellCnt) GetBestLengthPathBySpells(int orderIndex, List<Path>[] paths, List<Spell> spellsForLearn, HashSet<int> baseSpellIds)
         {
             var knownSpells = spellsForLearn.Select(x => x.Id).ToHashSet();
+
             var orderPaths = paths[orderIndex];
             var best = 0;
+            var res = new int[spellsForLearn.Count];
+
             if (orderPaths != null)
             {
                 foreach (var path in orderPaths)
                 {
                     var actions = path.GetActions();
-                    var canBrew = actions.All(a => !(a is Spell) || knownSpells.Contains(((Spell) a).Id));
+                    var canBrew = actions.All(a =>
+                        !(a is Spell) || knownSpells.Contains(((Spell) a).Id) || baseSpellIds.Contains(((Spell) a).Id));
                     if (canBrew && (best == 0 || best > path.GetLength()))
                     {
+                        for(var i = 0; i < spellsForLearn.Count; i++)
+                        {
+                            var spell = spellsForLearn[i];
+                            var contains = actions.Any(x => x is Spell sp && sp.Id == spell.Id);
+                            if (contains)
+                            {
+                                res[i]++;
+                            }
+                        }
                         best = path.GetLength();
                     }
                 }
             }
 
-            return (best, new List<int>());
+            return (best, res);
         }
 
         private static int GetActions(int[] tomeIndexes)
@@ -420,6 +528,10 @@ namespace Witches
             }
 
             var shortPaths = new List<Path>[orders.Count];
+            for (var i = 0; i < shortPaths.Length; i++)
+            {
+                shortPaths[i] = new List<Path>();
+            }
 
             for (var o = 0; o < orders.Count; o++)
             {
@@ -435,11 +547,6 @@ namespace Witches
                             {
                                 if (was[a, b, c, d].Cnt != 0 && was[a, b, c, d].Cnt <= min[o] + 1)
                                 {
-                                    if (shortPaths[o] == null)
-                                    {
-                                        shortPaths[o] = new List<Path>();
-                                    }
-
                                     foreach (var path in was[a, b, c, d].Path)
                                     {
                                         if (!shortPaths[o].Contains(path))
@@ -485,7 +592,7 @@ namespace Witches
 
                 if (maxD == depth)
                 {
-                    Console.Error.WriteLine(maxD);
+                    //Console.Error.WriteLine(maxD);
                     return was;
                 }
 
@@ -555,11 +662,11 @@ namespace Witches
 
             if (queue.Count == 0)
             {
-                Console.Error.WriteLine($" {maxD} I'm BEST!");
+                //Console.Error.WriteLine($" {maxD} I'm BEST!");
             }
             else
             {
-                Console.Error.WriteLine($" {maxD} NOT BAD!");
+                //Console.Error.WriteLine($" {maxD} NOT BAD!");
             }
 
             return was;
