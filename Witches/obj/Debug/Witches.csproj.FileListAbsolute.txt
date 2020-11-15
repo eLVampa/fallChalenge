@@ -1,0 +1,14 @@
+C:\Users\denis.boginich\source\repos\CodinGame\Witches\bin\Debug\Witches.exe.config
+C:\Users\denis.boginich\source\repos\CodinGame\Witches\bin\Debug\Witches.exe
+C:\Users\denis.boginich\source\repos\CodinGame\Witches\bin\Debug\Witches.pdb
+C:\Users\denis.boginich\source\repos\CodinGame\Witches\bin\Debug\nunit.framework.dll
+C:\Users\denis.boginich\source\repos\CodinGame\Witches\bin\Debug\nunit.framework.pdb
+C:\Users\denis.boginich\source\repos\CodinGame\Witches\bin\Debug\nunit.framework.xml
+C:\Users\denis.boginich\source\repos\CodinGame\Witches\obj\Debug\Witches.csprojAssemblyReference.cache
+C:\Users\denis.boginich\source\repos\CodinGame\Witches\obj\Debug\Witches.csproj.CoreCompileInputs.cache
+C:\Users\denis.boginich\source\repos\CodinGame\Witches\obj\Debug\Witches.csproj.CopyComplete
+C:\Users\denis.boginich\source\repos\CodinGame\Witches\obj\Debug\Witches.exe
+C:\Users\denis.boginich\source\repos\CodinGame\Witches\obj\Debug\Witches.pdb
+C:\Users\denis.boginich\source\repos\CodinGame\Witches\bin\Debug\FluentAssertions.dll
+C:\Users\denis.boginich\source\repos\CodinGame\Witches\bin\Debug\FluentAssertions.pdb
+C:\Users\denis.boginich\source\repos\CodinGame\Witches\bin\Debug\FluentAssertions.xml
