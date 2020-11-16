@@ -17,7 +17,8 @@ class Player
     {
         string[] inputs;
         var turnNumber = -1;
-
+        List<((int points, int length) score, int[] order)> learnMap = null;
+        var iamReady = false;
         // game loop
         while (true)
         {
@@ -98,19 +99,92 @@ class Player
 
             // Write an action using Console.WriteLine()
             // To debug: Console.Error.WriteLine("Debug messages...");
-            if (turnNumber < 4)
+            if (turnNumber == 0)
             {
-                var learn = learns.FirstOrDefault(l => l.TomeIndex == 0);
-                if (learn != null)
+                var spellOptimizer = new SpellOptimizer();
+
+                var tomeSpells = learns.Select(
+                    x => new Spell(x.Id, x.Spell, !x.Spell.IsPositiveOrZero(), 1)
+                ).ToList();
+                learnMap = spellOptimizer.GetSpellMapForLearn(orders, tomeSpells, spells);
+            }
+
+            if (!iamReady)
+            {
+                var (learnAction, finish) =
+                    TryGetLearnAction(learnMap, learns, spells, currentState.StateRes.Inventary[0]);
+                iamReady = iamReady || finish;
+                if (learnAction != null)
                 {
-                    Console.WriteLine(learn.Print());
+                    var q = new StringBuilder();
+                    q.Append(learnAction.Print());
+                    if (finish)
+                    {
+                        q.Append(" I AM READY!");
+                    }
+
+                    Console.WriteLine(q.ToString());
                     continue;
                 }
             }
+
             var action = new Resolver(debug).Resolve(currentState);
             Console.WriteLine(action);
             // in the first league: BREW <id> | WAIT; later: BREW <id> | CAST <id> [<times>] | LEARN <id> | REST | WAIT
         }
+    }
+
+    private static (IAction action, bool finish) TryGetLearnAction(
+        List<((int points, int length) score, int[] order)> learnMap,
+        List<Learn> tomeSpells,
+        ImmutableStack<Spell> knownSpells,
+        int zero)
+    {
+        var knownSpellsIds = knownSpells.Select(x => x.Id).ToHashSet();
+        foreach (var currentSet in learnMap)
+        {
+            var iamReady = true;
+
+            var goodSet = currentSet.order.Length == 0
+                          || currentSet.order.All(
+                              x => knownSpellsIds.Contains(x)
+                                   || (tomeSpells.FirstOrDefault(k => k.Id == x) != null)
+                          );
+            if (!goodSet)
+            {
+                continue;
+            }
+
+            foreach (var bestSpellId in currentSet.order)
+            {
+                if (knownSpellsIds.Contains(bestSpellId))
+                {
+                    continue;
+                }
+
+                for (var k = 0; k < tomeSpells.Count; k++)
+                {
+                    if (tomeSpells[k].Id == bestSpellId)
+                    {
+                        if (k <= zero)
+                        {
+                            return (tomeSpells[k], bestSpellId == currentSet.order[currentSet.order.Length - 1]);
+                        }
+
+                        return (knownSpells.First(s => s.Tiers[0] == 2), false);
+                    }
+
+                    iamReady = false;
+                }
+            }
+
+            if (iamReady)
+            {
+                return (null, false);
+            }
+        }
+
+        return (new Wait(), false);
     }
 
 
@@ -118,7 +192,7 @@ class Player
 
 public class Resolver
 {
-    public Resolver(bool debug, int timeout = 40)
+    public Resolver(bool debug, int timeout = 35)
     {
         this.debug = debug;
         this.timeout = timeout;
@@ -146,9 +220,9 @@ public class Resolver
             var cs = queue.Dequeue();
            
             var actions =
-                // state.Orders.Cast<IAction>()
-                // .Concat(state.Tome)
-                ((IEnumerable<IAction>) state.Spells)
+                state.Orders.Cast<IAction>()
+                .Concat(state.Tome)
+                .Concat(state.Spells)
                 .Append(new Rest())
                 .ToList();
 
@@ -254,11 +328,358 @@ public class Resolver
             sb.Append($" D {maxD}");
             //sb.Append($" KS {best.Spells.GetTop().Index + 1}");
             sb.Append($" V {processed}");
-            sb.Append("\r\nMy Plan: \r\n");
-            sb.Append(theBest.Actions);
+            //sb.Append("\r\nMy Plan: \r\n");
+            //sb.Append(theBest.Actions);
         }
 
         return sb.ToString();
+    }
+}
+
+public class SpellOptimizer
+{
+    public List<((int points, int length) score, int[] order)> GetSpellMapForLearn(List<Order> orders, List<Spell> tomSpell, ImmutableStack<Spell> baseSpell)
+    {
+        var pathFinder = new OrderPathFinder();
+        var res = new List<((int points, int length) score, int[] order)>();
+        for (var i0 = 0; i0 < 2; i0++)
+            for (var i1 = 0; i1 < 2; i1++)
+                for (var i2 = 0; i2 < 2; i2++)
+                    for (var i3 = 0; i3 < 2; i3++)
+                        for (var i4 = 0; i4 < 2; i4++)
+                            for (var i5 = 0; i5 < 2; i5++)
+                            {
+                                var a = new[] { i0, i1, i2, 0, 0, 0 };
+                                var spellForLearn = new List<Spell>();
+                                for (var k = 0; k < a.Length; k++)
+                                {
+                                    if (a[k] != 0)
+                                    {
+                                        spellForLearn.Add(tomSpell[k]);
+                                    }
+                                }
+
+                                var spellForSearch = baseSpell;
+                                foreach (var s in spellForLearn)
+                                {
+                                    spellForSearch = spellForSearch.Push(s);
+                                }
+
+                                var paths = pathFinder.FindOrderPaths(orders, spellForSearch);
+
+                                var (score, order) = GetScore(orders, paths, baseSpell.ToList(), spellForLearn);
+                                res.Add((score, order));
+                            }
+
+        return res.OrderByDescending(x => x.score.points)
+            .ThenBy(x => x.score.length)
+            .ThenByDescending(x => x.order.Length)
+            .ToList();
+    }
+
+
+    private static ((int points, int length) score, int[] order) GetScore(
+        List<Order> orders,
+        List<Path>[] paths,
+        List<Spell> baseSpell,
+        List<Spell> spellForLearn)
+    {
+        var baseSpellIds = baseSpell.Select(x => x.Id).ToHashSet();
+
+        var score = 0;
+        var totalLength = 0;
+        var summs = spellForLearn.Select(x => (Sum: 0, Spell: x)).ToArray();
+        for (var i = 0; i < orders.Count; i++)
+        {
+            var (length, spellsCnt) = GetBestLengthPathBySpells(i, paths, spellForLearn, baseSpellIds);
+            for (var j = 0; j < spellsCnt.Length; j++)
+            {
+                summs[j].Sum += spellsCnt[j];
+            }
+
+            totalLength += length;
+            if (length != 0)
+            {
+                score += orders[i].Price;
+            }
+        }
+
+        var resIdxs = summs.OrderByDescending(x => x.Sum)
+            .Select(x => x.Spell.Id)
+            .ToArray();
+
+        totalLength += GetActions(resIdxs);
+
+        return ((score, totalLength), resIdxs);
+    }
+
+    private static (int length, int[] spellCnt) GetBestLengthPathBySpells(int orderIndex, List<Path>[] paths, List<Spell> spellsForLearn, HashSet<int> baseSpellIds)
+    {
+        var knownSpells = spellsForLearn.Select(x => x.Id).ToHashSet();
+
+        var orderPaths = paths[orderIndex];
+        var best = 0;
+        var res = new int[spellsForLearn.Count];
+
+        if (orderPaths != null)
+        {
+            foreach (var path in orderPaths)
+            {
+                var actions = path.GetActions();
+                var canBrew = actions.All(a =>
+                    !(a is Spell) || knownSpells.Contains(((Spell)a).Id) || baseSpellIds.Contains(((Spell)a).Id));
+                if (canBrew && (best == 0 || best > path.GetLength()))
+                {
+                    for (var i = 0; i < spellsForLearn.Count; i++)
+                    {
+                        var spell = spellsForLearn[i];
+                        var contains = actions.Any(x => x is Spell sp && sp.Id == spell.Id);
+                        if (contains)
+                        {
+                            res[i]++;
+                        }
+                    }
+                    best = path.GetLength();
+                }
+            }
+        }
+
+        return (best, res);
+    }
+
+    private static int GetActions(int[] tomeIndexes)
+    {
+        var actionsCnt = 0;
+        var c = 3;
+        foreach (var tomIndex in tomeIndexes)
+        {
+            var k = 0;
+            switch (tomIndex)
+            {
+                case 5:
+                    (k, c) = GetActions(5, c);
+                    break;
+                case 4:
+                    (k, c) = GetActions(4, c);
+                    break;
+                case 3:
+                    (k, c) = GetActions(3, c);
+                    break;
+                case 2:
+                    (k, c) = GetActions(2, c);
+                    break;
+                case 1:
+                    (k, c) = GetActions(1, c);
+                    break;
+                case 0:
+                    (k, c) = GetActions(1, c);
+                    break;
+            }
+
+            actionsCnt += k;
+        }
+
+        return actionsCnt;
+    }
+
+    private static (int a, int newC) GetActions(int index, int c)
+    {
+        if (index > c)
+        {
+            var t = index - c;
+            var t2 = t / 2;
+            var ost = (t2 * 2) != t ? 1 : 0;
+            return (t2 + ost + 1, ost);
+        }
+
+        return (1, c - index);
+    }
+}
+
+public class OrderPathFinder
+{
+    public OrderPathFinder(int timeout = 900, int depth = 8)
+    {
+        this.depth = depth;
+        this.timeout = timeout;
+    }
+
+    private readonly int depth;
+    private readonly int timeout;
+
+    public List<Path>[] FindOrderPaths(List<Order> orders, ImmutableStack<Spell> spells)
+    {
+        var was = SpaceFill(spells);
+
+        var min = new byte[orders.Count];
+
+
+        for (var o = 0; o < orders.Count; o++)
+        {
+            var order = orders[o];
+            var tiers = order.Tiers * -1;
+
+            for (var a = tiers[0]; a <= 10; a++)
+            {
+                for (var b = tiers[1]; b <= 10 - a; b++)
+                {
+                    for (var c = tiers[2]; c <= 10 - a - b; c++)
+                    {
+                        for (var d = tiers[3]; d <= 10 - a - b - c; d++)
+                        {
+                            if (was[a, b, c, d].Cnt != 0 && (min[o] == 0 || min[o] > was[a, b, c, d].Cnt))
+                            {
+                                min[o] = was[a, b, c, d].Cnt;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        var shortPaths = new List<Path>[orders.Count];
+        for (var i = 0; i < shortPaths.Length; i++)
+        {
+            shortPaths[i] = new List<Path>();
+        }
+
+        for (var o = 0; o < orders.Count; o++)
+        {
+            var order = orders[o];
+            var tiers = order.Tiers * -1;
+            for (var a = tiers[0]; a <= 10; a++)
+            {
+                for (var b = tiers[1]; b <= 10 - a; b++)
+                {
+                    for (var c = tiers[2]; c <= 10 - a - b; c++)
+                    {
+                        for (var d = tiers[3]; d <= 10 - a - b - c; d++)
+                        {
+                            if (was[a, b, c, d].Cnt != 0 && was[a, b, c, d].Cnt <= min[o] + 1)
+                            {
+                                foreach (var path in was[a, b, c, d].Path)
+                                {
+                                    if (!shortPaths[o].Contains(path))
+                                    {
+                                        shortPaths[o].Add(path);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return shortPaths;
+    }
+
+    private (byte Cnt, List<Path> Path)[,,,] SpaceFill(ImmutableStack<Spell> spells)
+    {
+        var was = new (byte Cnt, List<Path> Path)[11, 11, 11, 11];
+
+        var maxD = 0;
+
+        var queue = new Queue<GameState>();
+
+        var state = new GameState(
+            new StateRes((0, 0, 0, 0), 0),
+            spells,
+            new List<Order>(),
+            new List<Learn>(),
+            new HashSet<int>(),
+            new HashSet<int>(),
+            new HashSet<int>(),
+            Path.Instance,
+            false);
+
+        queue.Enqueue(state);
+
+        var sw = Stopwatch.StartNew();
+        while (sw.ElapsedMilliseconds < timeout && queue.Count != 0)
+        {
+            var cs = queue.Dequeue();
+
+            if (maxD == depth)
+            {
+                //Console.Error.WriteLine(maxD);
+                return was;
+            }
+
+            var actions =
+                state.Orders.Cast<IAction>()
+                    .Concat(state.Tome)
+                    .Concat(state.Spells)
+                    .Append(new Rest())
+                    .ToList();
+
+            foreach (var action in actions)
+            {
+                if (sw.ElapsedMilliseconds > timeout)
+                {
+                    break;
+                }
+
+                var nextStates = action is Spell spell
+                    ? spell.GetNexStatesForSpell(cs)
+                    : new[] { action.TryGetNext(cs) };
+
+                foreach (var nextState in nextStates)
+                {
+                    if (sw.ElapsedMilliseconds > timeout)
+                    {
+                        break;
+                    }
+
+                    if (nextState != null)
+                    {
+                        var currentD = nextState.Actions.GetLength();
+
+                        var prevInv = cs.StateRes.Inventary;
+                        var inv = nextState.StateRes.Inventary;
+
+                        if (was[inv[0], inv[1], inv[2], inv[3]].Cnt == 0)
+                        {
+                            was[inv[0], inv[1], inv[2], inv[3]].Cnt = (byte)currentD;
+                            was[inv[0], inv[1], inv[2], inv[3]].Path = new List<Path> { nextState.Actions };
+                        }
+                        else
+                        {
+                            if (was[inv[0], inv[1], inv[2], inv[3]].Cnt + 1 >= currentD)
+                            {
+                                was[inv[0], inv[1], inv[2], inv[3]].Path.Add(nextState.Actions);
+                            }
+                        }
+
+                        if (inv[0] != prevInv[0]
+                            || inv[1] != prevInv[1]
+                            || inv[2] != prevInv[2]
+                            || inv[3] != prevInv[3])
+                        {
+                            if (was[inv[0], inv[1], inv[2], inv[3]].Cnt != 0 && was[inv[0], inv[1], inv[2], inv[3]].Cnt < currentD)
+                            {
+                                continue;
+                            }
+                        }
+
+                        queue.Enqueue(nextState);
+                        maxD = Math.Max(maxD, currentD);
+                    }
+                }
+            }
+        }
+
+
+        if (queue.Count == 0)
+        {
+            //Console.Error.WriteLine($" {maxD} I'm BEST!");
+        }
+        else
+        {
+            //Console.Error.WriteLine($" {maxD} NOT BAD!");
+        }
+
+        return was;
     }
 }
 
