@@ -46,13 +46,25 @@ namespace Witches
             foreach (var item in mapForLearn)
             {
                 var sb = new StringBuilder();
-                sb.Append($"points: {item.score.points}, length: {item.score.length}  | ");
-                foreach (var i in item.order)
+                sb.Append($"points: {item.TotalRupies}, length: {item.TotalLength}, maxDeep: {item.MaxDeep}  | ");
+                foreach (var i in item.LearnOrder)
                 {
                     sb.Append($" -> {i}");
                 }
 
                 Console.WriteLine(sb);
+            }
+
+            Console.WriteLine("Optimal path for second set.");
+            var t = mapForLearn[1];
+
+            for (var i = 0; i < orders.Count; i++)
+            {
+                Console.WriteLine($"Recipes for order {i}");
+                foreach (var recipes in t.OptimalRecipes[i])
+                {
+                    Console.WriteLine($"\t{recipes}");
+                }
             }
         }
 

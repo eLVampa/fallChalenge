@@ -2,6 +2,7 @@
 	<s:String x:Key="/Default/Environment/UnitTesting/UnitTestSessionStore/Sessions/=a27f2063_002Dfa27_002D4cf3_002Daa8b_002D4ee0a5483599/@EntryIndexedValue">&lt;SessionState ContinuousTestingMode="0" Name="Test1" xmlns="urn:schemas-jetbrains-com:jetbrains-ut-session"&gt;&#xD;
   &lt;TestAncestor&gt;&#xD;
     &lt;TestId&gt;NUnit3x::88DC66AA-C472-4EAA-A0A2-D74166E9A62C::.NETFramework,Version=v4.7.2::Witches.WorksheetSpells.Test1&lt;/TestId&gt;&#xD;
+    &lt;TestId&gt;NUnit3x::88DC66AA-C472-4EAA-A0A2-D74166E9A62C::.NETFramework,Version=v4.7.2::Witches.WorksheetSpells.SpellOptimizerTest&lt;/TestId&gt;&#xD;
   &lt;/TestAncestor&gt;&#xD;
 &lt;/SessionState&gt;</s:String>
 	<s:Boolean x:Key="/Default/UserDictionary/Words/=inventary/@EntryIndexedValue">True</s:Boolean></wpf:ResourceDictionary>
