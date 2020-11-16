@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using FluentAssertions;
@@ -84,7 +86,8 @@ namespace Witches
                 false
             );
 
-            var action = new Resolver(true).Resolve(currentState);
+            var sw = Stopwatch.StartNew();
+            var action = new Resolver(true).Resolve(currentState, sw);
             //action.Should().Contain("NOT BAD");
             Console.WriteLine(action);
         }

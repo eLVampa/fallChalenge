@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Management.Instrumentation;
 using System.Text;
 using NUnit.Framework;
 
@@ -9,6 +10,54 @@ namespace Witches
 {
     public class WorksheetSpells
     {
+
+        [Test]
+        public void BugTest()
+        {
+            var allSpells = GetAllSpells().ToList();
+
+            var baseSpell = ImmutableStack<Spell>.Instance
+                .Push(allSpells[0])
+                .Push(allSpells[1])
+                .Push(allSpells[2])
+                .Push(allSpells[3]);
+
+            var tomeSpells = new List<Learn>
+            {
+                new Learn(244, 0, (-2, 0, -1, 2), 0),
+                new Learn(245, 0, (-3, 0, 0, 1), 1),
+                new Learn(246, 0, (-4, 0, 2, 0), 2),
+                new Learn(247, 0, (3, -2, 1, 0), 3),
+                new Learn(248, 0, (0, -3, 3, 0), 4),
+                new Learn(249, 0, (0, 0, -3, 3), 5),
+            };
+
+
+            var orders = new List<Order>
+            {
+                OrderReceipts[22],
+                OrderReceipts[29],
+                OrderReceipts[10],
+                OrderReceipts[15],
+                OrderReceipts[3],
+            };
+
+            var spellOptimizer = new SpellOptimizer();
+            var sw = Stopwatch.StartNew();
+            var learnMap = spellOptimizer.GetSpellMapForLearn(orders, tomeSpells, baseSpell, sw);
+
+
+            var spells = baseSpell;
+            
+           var learnRes = Player.TryGetLearnAction(learnMap, tomeSpells, spells, 3, new HashSet<int>());
+           spells = spells.Push(new Spell(147, ((Learn) learnRes.action).Spell, true, 1));
+           tomeSpells = tomeSpells.Where(x => x.Id != ((Learn) learnRes.action).Id).ToList();
+           var learnRes2 = Player.TryGetLearnAction(learnMap, tomeSpells, spells, 3, new HashSet<int>());
+           spells = spells.Push(new Spell(741, ((Learn)learnRes2.action).Spell, true, 1));
+           tomeSpells = tomeSpells.Where(x => x.Id != ((Learn)learnRes2.action).Id).ToList();
+           var learnRes3 = Player.TryGetLearnAction(learnMap, tomeSpells, spells, 3, new HashSet<int>());
+
+        }
 
         [Test]
         public void SpellOptimizerTest()
@@ -21,7 +70,7 @@ namespace Witches
                 .Push(allSpells[2])
                 .Push(allSpells[3]);
 
-            var tomeSpells = new List<Spell>()
+            var spellsForLearn = new List<Spell>()
             {
                 allSpells[15],
                 allSpells[27],
@@ -30,6 +79,9 @@ namespace Witches
                 allSpells[7],
                 allSpells[11],
             };
+
+            var tomeSpells = spellsForLearn.Select((x, i) => new Learn(x.Id, 0, x.Tiers, i))
+                .ToList();
 
             var orders = new List<Order>
             {
@@ -40,8 +92,9 @@ namespace Witches
                 OrderReceipts[13],
             };
 
+            var sw = Stopwatch.StartNew();
             var spellOptimizer = new SpellOptimizer();
-            var mapForLearn = spellOptimizer.GetSpellMapForLearn(orders, tomeSpells, baseSpell);
+            var mapForLearn = spellOptimizer.GetSpellMapForLearn(orders, tomeSpells, baseSpell, sw);
 
             foreach (var item in mapForLearn)
             {
@@ -119,10 +172,8 @@ namespace Witches
             };
 
             var sw = new Stopwatch();
-            sw.Start();
-            
             var orderPathFinder = new OrderPathFinder();
-            var shortPaths = orderPathFinder.FindOrderPaths(orders, startSpell);
+            var shortPaths = orderPathFinder.FindOrderPaths(orders, startSpell, sw);
             
             Console.WriteLine(sw.ElapsedMilliseconds);
 
@@ -212,7 +263,7 @@ namespace Witches
         private static readonly List<Tiers> AllSpellsReceipts = new List<Tiers>
         {
             (2, 0, 0, 0),
-            (-1, 1, 0, 1),
+            (-1, 1, 0, 0),
             (0, -1, 1, 0),
             (0, 0, -1, 1),
             (-3, 0, 0, 1),
